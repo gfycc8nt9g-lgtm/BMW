@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الألمانية لقطع الغيار</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 15px; background-color: #f4f6f8; color: #333; }
+        header { text-align: center; margin-bottom: 15px; }
+        header h1 { margin: 0; font-size: 22px; color: #1a1a1a; }
+        .search-box { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 10px; margin-bottom: 15px; outline: none; background: #fff; }
+        .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+        .card { background: #ffffff; border-radius: 12px; padding: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between; border: 1px solid #e2e8f0; }
+        .card h3 { margin: 0 0 6px 0; font-size: 17px; color: #1e293b; }
+        .code { font-size: 13px; color: #64748b; margin: 0 0 6px 0; font-family: monospace; }
+        .price { font-size: 16px; color: #16a34a; font-weight: bold; margin: 0 0 12px 0; }
+        .btn { background-color: #25D366; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; text-align: center; width: 100%; text-decoration: none; display: block; box-sizing: border-box; }
+        .btn:active { opacity: 0.85; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>الألمانية لقطع الغيار</h1>
+    </header>
+
+    <input type="text" id="searchInput" class="search-box" placeholder="ابحث باسم القطعة أو الكود..." onkeyup="filterProducts()">
+
+    <div class="grid" id="productGrid"></div>
+
+    <script>
+        // ضع رقم واتساب المحل هنا بدلاً من الرقم الافتراضي (مع كود الدولة مثلاً لمصر 20)
+        const phoneNumber = "201000000000"; 
+
+        const products = [
+            // القائمة الكاملة المراجعة للقطع والأسعار والأكواد
+            { name: "مسمار عجلة أصلي", code: "8136136890324", price: "475 جنيه" },
+            { name: "بوجيهات بوش", code: "25/1/12120040551", price: "2250 جنيه" },
+            { name: "طلمبة مياة بمستر", code: "1/11517586779", price: "3000 جنيه" },
+
+            { name: "تيل أمامي ماتريكس", code: "25/1/34356790303", price: "370 جنيه" },
+            { name: "فلتر زيت ماتريكس", code: "25/120/11428637812", price: "4750 جنيه" },
+            { name: "تيل فرامل خلفي", code: "1/17117534914", price: "13500 جنيه" },
+            { name: "تيل فرامل عالي بريمبا", code: "1/17117534896", price: "3200 جنيه" },
+
+            { name: "مقص أمامي يمين ماتريكس", code: "8/31126787670", price: "2750 جنيه" },
+            { name: "مقص أمامي شمال ماتريكس", code: "8/31126787669", price: "2750 جنيه" },
+            { name: "زيت فتيس 8 سرعات غيار", code: "25/120/83222152426", price: "950 جنيه" },
+            { name: "كتاشة شداد سير", code: "11/4287549589", price: "غير محدد" },
+
+            { name: "جلبة روستر", code: "8/171111742231", price: "650 جنيه" },
+            { name: "جلبة روستر org", code: "25/1/81229407454", price: "1400 جنيه" },
+            { name: "تيش أمامي", code: "25/2/11427953129", price: "1100 جنيه" },
+            { name: "شواكيش أصلي ماتريكس", code: "25/125/113717571355", price: "1300 جنيه" },
+            { name: "طلمبة مياة ماتريكس", code: "8/12/11517632426", price: "17000 جنيه" },
+
+            { name: "خرطوم فايز ماتريكس", code: "25/11/13717597586", price: "1550 جنيه" },
+            { name: "عجينة بوش", code: "25/1/12137562744", price: "1800 جنيه" },
+            { name: "موتور أصلي مرشح", code: "25/120/83212365930", price: "غير محدد" },
+            { name: "طلمبة مياة ماتريكس", code: "25/120/11517604027", price: "14500 جنيه" },
+            { name: "ثرموستات ماتريكس", code: "25/120/11537633477", price: "2900 جنيه" },
+
+            { name: "مياة أصلية org", code: "25/1/81229407454", price: "1400 جنيه" },
+            { name: "زيت فتيس 8 سرعات", code: "25/20/83222152426", price: "950 جنيه" },
+            { name: "مسمار هواء قربة", code: "25/1/17111712788", price: "200 جنيه" },
+            { name: "غطاء قربة روستر", code: "8/17111742231", price: "750 جنيه" },
+            { name: "فيشة تيل أمامي ماتريكس", code: "1/34356762252", price: "250 جنيه" },
+            { name: "خرطوم مياة فايز جينس", code: "1/17127596831", price: "1300 جنيه" },
+            { name: "خرطوم تربو ماتريكس", code: "25/120/11427585403", price: "2050 جنيه" },
+            { name: "خرطوم سيكون ماتريكس", code: "81/1157608144", price: "1100 جنيه" },
+
+            { name: "فلتر هواء ماهلي", code: "8/13717571355", price: "1000 جنيه" },
+            { name: "خرطوم سخان ماتريكس", code: "25/20/64219223587", price: "4000 جنيه" },
+            { name: "طلمبة مياة ضغط ماتريكس", code: "25/1/11518604888", price: "3400 جنيه" },
+            { name: "كرسي نص ماتريكس", code: "25/20/26128615621", price: "1800 جنيه" },
+
+            { name: "سربنتينة ماتريكس", code: "25/1/164508379885", price: "1350 جنيه" },
+            { name: "تيل أمامي ماتريكس", code: "25/20/34116763618", price: "1900 جنيه" },
+            { name: "فلتر هواء مان", code: "25/11/13717571355", price: "1250 جنيه" },
+            { name: "كوعة مياة ماتريكس", code: "25/20/11537600586", price: "2500 جنيه" },
+            { name: "حساس حرارة ماتريكس", code: "25/1/165816905133", price: "550 جنيه" },
+            { name: "مسمار هواء فرامل تایوان", code: "8/17111712788", price: "380 جنيه" },
+
+            { name: "فايز ماتريكس", code: "25/20/17127601859", price: "1150 جنيه" },
+            { name: "منظف بنزين أصلي", code: "25/1/831929408560", price: "3450 جنيه" },
+            { name: "فلتر زيت بوش", code: "25/11/11427566327", price: "900 جنيه" },
+
+            { name: "أويل سيل صباب رينز", code: "25/1/11340029751", price: "1850 جنيه" },
+            { name: "طلمبة بنزين ماتريكس", code: "25/20/16117197076", price: "3800 جنيه" },
+            { name: "بطاحة أمامي ماتريكس", code: "25/1/31306863135", price: "4800 جنيه" },
+            { name: "بارة دركسيون ماتريكس يمين", code: "25/1/32106799960", price: "2800 جنيه" },
+            { name: "بارة دركسيون ماتريكس شمال", code: "21/32106799965", price: "2800 جنيه" },
+            { name: "قاعدة موتور يمين ماتريكس", code: "25/20/22116855460", price: "4100 جنيه" },
+            { name: "قاعدة موتور شمال ماتريكس", code: "25/20/22116787659", price: "4100 جنيه" },
+            { name: "فلتر هواء هينجست", code: "113718507320", price: "900 جنيه" },
+            { name: "منظف بنزين أصلي", code: "25/11/83192408560", price: "1150 جنيه" },
+            { name: "فلتر زيت ماتريكس", code: "25/11/11427635557", price: "650 جنيه" },
+            { name: "مياة أصلية", code: "25/11/81229407454", price: "1350 جنيه" }
+        ];
+
+        function displayProducts(items) {
+            const grid = document.getElementById('productGrid');
+            grid.innerHTML = '';
+
+            if (items.length === 0) {
+                grid.innerHTML = '<p style="text-align:center; color:#888;">لا توجد نتائج مطابقة</p>';
+                return;
+            }
+
+            items.forEach(product => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div>
+                        <h3>${product.name}</h3>
+                        <div class="code">الكود: ${product.code}</div>
+                        <div class="price">السعر: ${product.price}</div>
+                    </div>
+                    <button class="btn" onclick="orderViaWhatsApp('${product.name}', '${product.code}', '${product.price}')">طلب عبر واتساب</button>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function filterProducts() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = products.filter(p => 
+                p.name.toLowerCase().includes(query) || 
+                p.code.toLowerCase().includes(query)
+            );
+            displayProducts(filtered);
+        }
+
+        function orderViaWhatsApp(name, code, price) {
+            const message = encodeURIComponent(`مرحباً، أود الطلب/الاستفسار عن القطعة التالية:\n- القطعة: ${name}\n- الكود: ${code}\n- السعر: ${price}`);
+            window.location.href = `https://wa.me/${phoneNumber}?text=${message}`;
+        }
+
+        displayProducts(products);
+    </script>
+</body>
+</html>
