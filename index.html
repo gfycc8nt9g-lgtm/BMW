@@ -9,6 +9,15 @@
         body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 15px; background-color: #f4f6f8; color: #333; }
         header { text-align: center; margin-bottom: 15px; }
         header h1 { margin: 0; font-size: 22px; color: #1a1a1a; }
+        
+        /* نموذج إضافة قطعة جديدة */
+        .add-form { background: #fff; padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+        .add-form h2 { font-size: 16px; margin: 0 0 10px 0; color: #1e293b; }
+        .form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+        .form-input { padding: 10px; font-size: 14px; border: 1px solid #ddd; border-radius: 8px; outline: none; }
+        .btn-add { background-color: #0284c7; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; }
+        .btn-add:active { opacity: 0.85; }
+
         .search-box { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 10px; margin-bottom: 15px; outline: none; background: #fff; }
         .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
         .card { background: #ffffff; border-radius: 12px; padding: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between; border: 1px solid #e2e8f0; }
@@ -25,42 +34,48 @@
         <h1>الألمانية لقطع الغيار</h1>
     </header>
 
+    <!-- نموذج إضافة عنصر جديد -->
+    <div class="add-form">
+        <h2>إضافة قطعة جديدة</h2>
+        <div class="form-group">
+            <input type="text" id="newName" class="form-input" placeholder="اسم القطعة...">
+            <input type="text" id="newCode" class="form-input" placeholder="الكود...">
+            <input type="text" id="newPrice" class="form-input" placeholder="السعر (مثال: 550 جنيه)...">
+        </div>
+        <button class="btn-add" onclick="addNewProduct()">إضافة القطعة</button>
+    </div>
+
+    <!-- البحث -->
     <input type="text" id="searchInput" class="search-box" placeholder="ابحث باسم القطعة أو الكود..." onkeyup="filterProducts()">
 
     <div class="grid" id="productGrid"></div>
 
     <script>
-        // ضع رقم واتساب المحل هنا بدلاً من الرقم الافتراضي (مع كود الدولة مثلاً لمصر 20)
-        const phoneNumber = "201000000000"; 
+        // رقم الواتساب الخاص بك مع كود مصر 20
+        const phoneNumber = "201033241788"; 
 
-        const products = [
-            // القائمة الكاملة المراجعة للقطع والأسعار والأكواد
+        const defaultProducts = [
             { name: "مسمار عجلة أصلي", code: "8136136890324", price: "475 جنيه" },
             { name: "بوجيهات بوش", code: "25/1/12120040551", price: "2250 جنيه" },
             { name: "طلمبة مياة بمستر", code: "1/11517586779", price: "3000 جنيه" },
-
             { name: "تيل أمامي ماتريكس", code: "25/1/34356790303", price: "370 جنيه" },
             { name: "فلتر زيت ماتريكس", code: "25/120/11428637812", price: "4750 جنيه" },
             { name: "تيل فرامل خلفي", code: "1/17117534914", price: "13500 جنيه" },
             { name: "تيل فرامل عالي بريمبا", code: "1/17117534896", price: "3200 جنيه" },
-
             { name: "مقص أمامي يمين ماتريكس", code: "8/31126787670", price: "2750 جنيه" },
             { name: "مقص أمامي شمال ماتريكس", code: "8/31126787669", price: "2750 جنيه" },
             { name: "زيت فتيس 8 سرعات غيار", code: "25/120/83222152426", price: "950 جنيه" },
             { name: "كتاشة شداد سير", code: "11/4287549589", price: "غير محدد" },
-
             { name: "جلبة روستر", code: "8/171111742231", price: "650 جنيه" },
             { name: "جلبة روستر org", code: "25/1/81229407454", price: "1400 جنيه" },
             { name: "تيش أمامي", code: "25/2/11427953129", price: "1100 جنيه" },
             { name: "شواكيش أصلي ماتريكس", code: "25/125/113717571355", price: "1300 جنيه" },
             { name: "طلمبة مياة ماتريكس", code: "8/12/11517632426", price: "17000 جنيه" },
-
             { name: "خرطوم فايز ماتريكس", code: "25/11/13717597586", price: "1550 جنيه" },
             { name: "عجينة بوش", code: "25/1/12137562744", price: "1800 جنيه" },
             { name: "موتور أصلي مرشح", code: "25/120/83212365930", price: "غير محدد" },
             { name: "طلمبة مياة ماتريكس", code: "25/120/11517604027", price: "14500 جنيه" },
             { name: "ثرموستات ماتريكس", code: "25/120/11537633477", price: "2900 جنيه" },
-
             { name: "مياة أصلية org", code: "25/1/81229407454", price: "1400 جنيه" },
             { name: "زيت فتيس 8 سرعات", code: "25/20/83222152426", price: "950 جنيه" },
             { name: "مسمار هواء قربة", code: "25/1/17111712788", price: "200 جنيه" },
@@ -69,23 +84,19 @@
             { name: "خرطوم مياة فايز جينس", code: "1/17127596831", price: "1300 جنيه" },
             { name: "خرطوم تربو ماتريكس", code: "25/120/11427585403", price: "2050 جنيه" },
             { name: "خرطوم سيكون ماتريكس", code: "81/1157608144", price: "1100 جنيه" },
-
             { name: "فلتر هواء ماهلي", code: "8/13717571355", price: "1000 جنيه" },
             { name: "خرطوم سخان ماتريكس", code: "25/20/64219223587", price: "4000 جنيه" },
             { name: "طلمبة مياة ضغط ماتريكس", code: "25/1/11518604888", price: "3400 جنيه" },
             { name: "كرسي نص ماتريكس", code: "25/20/26128615621", price: "1800 جنيه" },
-
             { name: "سربنتينة ماتريكس", code: "25/1/164508379885", price: "1350 جنيه" },
             { name: "تيل أمامي ماتريكس", code: "25/20/34116763618", price: "1900 جنيه" },
             { name: "فلتر هواء مان", code: "25/11/13717571355", price: "1250 جنيه" },
             { name: "كوعة مياة ماتريكس", code: "25/20/11537600586", price: "2500 جنيه" },
             { name: "حساس حرارة ماتريكس", code: "25/1/165816905133", price: "550 جنيه" },
             { name: "مسمار هواء فرامل تایوان", code: "8/17111712788", price: "380 جنيه" },
-
             { name: "فايز ماتريكس", code: "25/20/17127601859", price: "1150 جنيه" },
             { name: "منظف بنزين أصلي", code: "25/1/831929408560", price: "3450 جنيه" },
             { name: "فلتر زيت بوش", code: "25/11/11427566327", price: "900 جنيه" },
-
             { name: "أويل سيل صباب رينز", code: "25/1/11340029751", price: "1850 جنيه" },
             { name: "طلمبة بنزين ماتريكس", code: "25/20/16117197076", price: "3800 جنيه" },
             { name: "بطاحة أمامي ماتريكس", code: "25/1/31306863135", price: "4800 جنيه" },
@@ -98,6 +109,8 @@
             { name: "فلتر زيت ماتريكس", code: "25/11/11427635557", price: "650 جنيه" },
             { name: "مياة أصلية", code: "25/11/81229407454", price: "1350 جنيه" }
         ];
+
+        let products = JSON.parse(localStorage.getItem('myProducts')) || defaultProducts;
 
         function displayProducts(items) {
             const grid = document.getElementById('productGrid');
@@ -130,6 +143,29 @@
                 p.code.toLowerCase().includes(query)
             );
             displayProducts(filtered);
+        }
+
+        function addNewProduct() {
+            const name = document.getElementById('newName').value.trim();
+            const code = document.getElementById('newCode').value.trim();
+            const price = document.getElementById('newPrice').value.trim();
+
+            if (!name || !code || !price) {
+                alert("يرجى ملء كافة الخانات (الاسم، الكود، والسعر)");
+                return;
+            }
+
+            const newProduct = { name, code, price };
+            products.unshift(newProduct);
+
+            localStorage.setItem('myProducts', JSON.stringify(products));
+
+            document.getElementById('newName').value = '';
+            document.getElementById('newCode').value = '';
+            document.getElementById('newPrice').value = '';
+            filterProducts();
+
+            alert("تمت إضافة القطعة بنجاح!");
         }
 
         function orderViaWhatsApp(name, code, price) {
