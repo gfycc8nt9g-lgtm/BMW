@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم - المركز الألماني لقطع غيار BMW</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 15px; background-color: #f4f6f8; color: #333; }
+        header { text-align: center; margin-bottom: 15px; }
+        header h1 { margin: 0; font-size: 20px; color: #1a1a1a; }
+        
+        .card-box { background: #fff; padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #e2e8f0; }
+        .card-box h2 { font-size: 15px; margin: 0 0 10px 0; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; }
+        .form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+        .form-input, .form-select { padding: 10px; font-size: 14px; border: 1px solid #ddd; border-radius: 8px; outline: none; background: #fff; }
+        
+        .btn-add { background-color: #0284c7; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; }
+        .btn-print { background-color: #059669; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; }
+
+        #printableInvoice { display: none; background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ccc; }
+        @media print {
+            body * { visibility: hidden; }
+            #printableInvoice, #printableInvoice * { visibility: visible; }
+            #printableInvoice { position: absolute; left: 0; top: 0; width: 100%; display: block !important; border: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="no-print">
+        <h1>لوحة تحكم المخزون والفواتير</h1>
+    </header>
+
+    <!-- إضافة قطعة -->
+    <div class="card-box no-print">
+        <h2>إضافة قطعة جديدة</h2>
+        <div class="form-group">
+            <input type="text" id="newName" class="form-input" placeholder="اسم القطعة...">
+            <input type="text" id="newCode" class="form-input" placeholder="الكود...">
+            <input type="number" id="newPrice" class="form-input" placeholder="السعر...">
+            <input type="number" id="newStock" class="form-input" placeholder="الكمية المتوفرة..." value="10">
+        </div>
+        <button class="btn-add" onclick="addNewProduct()">إضافة للمخزون</button>
+    </div>
+
+    <!-- طباعة فاتورة -->
+    <div class="card-box no-print">
+        <h2>إنشاء وتصدير فاتورة</h2>
+        <div class="form-group">
+            <input type="text" id="workerName" class="form-input" placeholder="اسم البائع/العامل...">
+            <input type="text" id="customerName" class="form-input" placeholder="اسم العميل...">
+            <select id="invoiceProductSelect" class="form-select"></select>
+            <input type="number" id="invoiceQty" class="form-input" placeholder="الكمية المباعة..." value="1" min="1">
+        </div>
+        <button class="btn-print" onclick="processInvoice()">طباعة الفاتورة وخصم الكمية</button>
+    </div>
+
+    <!-- الفاتورة للطباعة -->
+    <div id="printableInvoice">
+        <h2 style="text-align: center; margin-bottom: 5px;">المركز الألماني لقطع غيار BMW</h2>
+        <p style="text-align: center; margin-top: 0; color: #555;">فاتورة مبيعات</p>
+        <hr>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <p style="margin: 3px 0;"><strong>التاريخ:</strong> <span id="invDate"></span></p>
+            <p style="margin: 3px 0;"><strong>البائع:</strong> <span id="invWorker">غير محدد</span></p>
+        </div>
+        <p style="margin: 3px 0;"><strong>العميل:</strong> <span id="invCustomer">نقدي</span></p>
+        
+        <table style="width: 100%; border-collapse: collapse; margin-top: 15px;" border="1" cellpadding="8">
+            <thead>
+                <tr style="background-color: #f2f2f2;">
+                    <th>القطعة</th>
+                    <th>الكود</th>
+                    <th>الكمية</th>
+                    <th>السعر</th>
+                    <th>الإجمالي</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td id="invItemName"></td>
+                    <td id="invItemCode"></td>
+                    <td id="invItemQty" style="text-align: center;"></td>
+                    <td id="invItemPrice" style="text-align: center;"></td>
+                    <td id="invItemTotal" style="text-align: center; font-weight: bold;"></td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <h3 style="text-align: left; margin-top: 20px;">الإجمالي الكلي: <span id="invGrandTotal"></span> جنيه</h3>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDAtgcGVa_yuy-IMA02...", 
+            authDomain: "bmw-parts-b99e1.firebaseapp.com",
+            projectId: "bmw-parts-b99e1",
+            storageBucket: "bmw-parts-b99e1.appspot.com",
+            messagingSenderId: "854628460870",
+            appId: "1:854628460870:web:79f24...",
+            measurementId: "G-BB9G5JVSB1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const productsCol = collection(db, "products");
+        let products = [];
+
+        onSnapshot(productsCol, (snapshot) => {
+            products = [];
+            snapshot.forEach((docSnap) => {
+                products.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            populateSelectOptions();
+        });
+
+        window.populateSelectOptions = function() {
+            const select = document.getElementById('invoiceProductSelect');
+            select.innerHTML = '<option value="">-- اختر القطعة للفاتورة --</option>';
+            products.forEach((p, index) => {
+                select.innerHTML += `<option value="${index}">${p.name} - (المتبقي: ${p.stock})</option>`;
+            });
+        };
+
+        window.addNewProduct = async function() {
+            const name = document.getElementById('newName').value.trim();
+            const code = document.getElementById('newCode').value.trim();
+            const price = parseFloat(document.getElementById('newPrice').value);
+            const stock = parseInt(document.getElementById('newStock').value);
+
+            if (!name || !code || isNaN(price) || isNaN(stock)) {
+                alert("يرجى ملء جميع الحقول بشكل صحيح");
+                return;
+            }
+
+            try {
+                await addDoc(productsCol, { name, code, price, stock });
+                document.getElementById('newName').value = '';
+                document.getElementById('newCode').value = '';
+                document.getElementById('newPrice').value = '';
+                document.getElementById('newStock').value = '10';
+                alert("تمت إضافة القطعة بنجاح!");
+            } catch (e) {
+                alert("خطأ: " + e.message);
+            }
+        };
+
+        window.processInvoice = async function() {
+            const selectIndex = document.getElementById('invoiceProductSelect').value;
+            const qty = parseInt(document.getElementById('invoiceQty').value);
+            const worker = document.getElementById('workerName').value.trim() || 'غير محدد';
+            const customer = document.getElementById('customerName').value.trim() || 'عام';
+
+            if (selectIndex === "" || isNaN(qty) || qty <= 0) {
+                alert("اختر القطعة والكمية بشكل صحيح");
+                return;
+            }
+
+            const product = products[selectIndex];
+            if (qty > product.stock) {
+                alert(`الكمية المطلوبة أكبر من المتاح (${product.stock})`);
+                return;
+            }
+
+            try {
+                const productRef = doc(db, "products", product.id);
+                await updateDoc(productRef, { stock: product.stock - qty });
+
+                document.getElementById('invDate').innerText = new Date().toLocaleDateString('ar-EG');
+                document.getElementById('invWorker').innerText = worker;
+                document.getElementById('invCustomer').innerText = customer;
+                document.getElementById('invItemName').innerText = product.name;
+                document.getElementById('invItemCode').innerText = product.code;
+                document.getElementById('invItemQty').innerText = qty;
+                document.getElementById('invItemPrice').innerText = product.price + " جنيه";
+                document.getElementById('invItemTotal').innerText = (product.price * qty) + " جنيه";
+                document.getElementById('invGrandTotal').innerText = (product.price * qty);
+
+                window.print();
+            } catch (e) {
+                alert("خطأ: " + e.message);
+            }
+        };
+    </script>
+</body>
+</html>
