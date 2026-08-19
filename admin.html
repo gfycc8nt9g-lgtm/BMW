@@ -17,6 +17,11 @@
         
         .btn-add { background-color: #0284c7; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; }
         .btn-print { background-color: #059669; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; }
+        .btn-return { background-color: #d97706; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: center; }
+        th { background-color: #f8fafc; }
 
         #printableInvoice { display: none; background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ccc; }
         @media print {
@@ -56,6 +61,29 @@
         <button class="btn-print" onclick="processInvoice()">طباعة الفاتورة وخصم الكمية</button>
     </div>
 
+    <!-- سجل المبيعات والفواتير -->
+    <div class="card-box no-print">
+        <h2>سجل المبيعات والفواتير الصادرة</h2>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>العميل</th>
+                        <th>البائع</th>
+                        <th>القطعة</th>
+                        <th>الكمية</th>
+                        <th>الإجمالي</th>
+                        <th>التاريخ</th>
+                        <th>إرجاع للمخزن</th>
+                    </tr>
+                </thead>
+                <tbody id="salesTableBody">
+                    <tr><td colspan="7">جاري تحميل السجل...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- الفاتورة للطباعة -->
     <div id="printableInvoice">
         <h2 style="text-align: center; margin-bottom: 5px;">المركز الألماني لقطع غيار BMW</h2>
@@ -93,7 +121,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDAtgcGVa_yuy-IMA02...", 
@@ -108,8 +136,12 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const productsCol = collection(db, "products");
-        let products = [];
+        const salesCol = collection(db, "sales");
 
+        let products = [];
+        let sales = [];
+
+        // الاستماع لتغييرات المخزون
         onSnapshot(productsCol, (snapshot) => {
             products = [];
             snapshot.forEach((docSnap) => {
@@ -118,11 +150,46 @@
             populateSelectOptions();
         });
 
+        // الاستماع لسجل المبيعات
+        onSnapshot(salesCol, (snapshot) => {
+            sales = [];
+            snapshot.forEach((docSnap) => {
+                sales.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            displaySales();
+        });
+
         window.populateSelectOptions = function() {
             const select = document.getElementById('invoiceProductSelect');
             select.innerHTML = '<option value="">-- اختر القطعة للفاتورة --</option>';
             products.forEach((p, index) => {
                 select.innerHTML += `<option value="${index}">${p.name} - (المتبقي: ${p.stock})</option>`;
+            });
+        };
+
+        window.displaySales = function() {
+            const tbody = document.getElementById('salesTableBody');
+            tbody.innerHTML = '';
+
+            if (sales.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7">لا توجد مبيعات مسجلة حتى الآن</td></tr>';
+                return;
+            }
+
+            sales.forEach(sale => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${sale.customer}</td>
+                    <td>${sale.worker}</td>
+                    <td>${sale.productName}</td>
+                    <td>${sale.qty}</td>
+                    <td>${sale.total} جنيه</td>
+                    <td>${sale.date}</td>
+                    <td>
+                        <button class="btn-return" onclick="returnToStock('${sale.id}', '${sale.productId}', ${sale.qty})">إعادة للمخزن</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
             });
         };
 
@@ -170,7 +237,21 @@
                 const productRef = doc(db, "products", product.id);
                 await updateDoc(productRef, { stock: product.stock - qty });
 
-                document.getElementById('invDate').innerText = new Date().toLocaleDateString('ar-EG');
+                const dateStr = new Date().toLocaleDateString('ar-EG');
+
+                // حفظ الفاتورة في سجل المبيعات
+                await addDoc(salesCol, {
+                    productId: product.id,
+                    productName: product.name,
+                    qty: qty,
+                    price: product.price,
+                    total: product.price * qty,
+                    worker: worker,
+                    customer: customer,
+                    date: dateStr
+                });
+
+                document.getElementById('invDate').innerText = dateStr;
                 document.getElementById('invWorker').innerText = worker;
                 document.getElementById('invCustomer').innerText = customer;
                 document.getElementById('invItemName').innerText = product.name;
@@ -183,6 +264,25 @@
                 window.print();
             } catch (e) {
                 alert("خطأ: " + e.message);
+            }
+        };
+
+        window.returnToStock = async function(saleId, productId, qty) {
+            if (!confirm("هل أنت تأكد من إرجاع هذه الكمية للمخزن وإلغاء المبيعة؟")) return;
+
+            try {
+                const product = products.find(p => p.id === productId);
+                if (product) {
+                    const productRef = doc(db, "products", productId);
+                    await updateDoc(productRef, { stock: product.stock + qty });
+                }
+
+                const saleRef = doc(db, "sales", saleId);
+                await deleteDoc(saleRef);
+
+                alert("تمت إعادة الكمية للمخزون وتعديل السجل بنجاح!");
+            } catch (e) {
+                alert("خطأ أثناء الإرجاع: " + e.message);
             }
         };
     </script>
