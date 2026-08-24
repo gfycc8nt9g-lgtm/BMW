@@ -14,9 +14,8 @@
         .card { background: #ffffff; border-radius: 12px; padding: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between; border: 1px solid #e2e8f0; }
         .card h3 { margin: 0 0 6px 0; font-size: 17px; color: #1e293b; }
         .code { font-size: 13px; color: #64748b; margin: 0 0 6px 0; font-family: monospace; }
-        .price { font-size: 15px; color: #16a34a; font-weight: bold; margin: 0 0 4px 0; }
-        .stock { font-size: 14px; color: #0284c7; font-weight: bold; margin-bottom: 10px; }
-        .stock.out { color: #dc2626; }
+        .price { font-size: 15px; color: #16a34a; font-weight: bold; margin: 0 0 8px 0; }
+        .out-badge { background-color: #fee2e2; color: #dc2626; padding: 8px; border-radius: 6px; font-size: 13px; font-weight: bold; text-align: center; }
         .btn { background-color: #25D366; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; text-align: center; width: 100%; text-decoration: none; display: block; box-sizing: border-box; }
     </style>
 </head>
@@ -62,7 +61,7 @@
             grid.innerHTML = '';
 
             if (items.length === 0) {
-                grid.innerHTML = '<p style="text-align:center; color:#888;">جاري التحميل أو لا توجد قطع مطابقة...</p>';
+                grid.innerHTML = '<p style="text-align:center; color:#888;">جاري التحميل أو لا توجد قطع...</p>';
                 return;
             }
 
@@ -76,11 +75,11 @@
                         <h3>${product.name}</h3>
                         <div class="code">الكود: ${product.code}</div>
                         <div class="price">السعر: ${product.price} جنيه</div>
-                        <div class="stock ${isOutOfStock ? 'out' : ''}">
-‎                            الحالة: ${isOutOfStock ? 'غير متوفر حالياً' : 'متوفر بالمخزن'}
-                        </div>
                     </div>
-                    <button class="btn" onclick="orderViaWhatsApp('${product.name}', '${product.code}', '${product.price}')">طلب عبر واتساب</button>
+                    ${isOutOfStock 
+                        ? '<div class="out-badge">نفدت الكمية</div>' 
+                        : `<button class="btn" onclick="orderViaWhatsApp('${product.name}', '${product.code}', '${product.price}')">طلب عبر واتساب</button>`
+                    }
                 `;
                 grid.appendChild(card);
             });
