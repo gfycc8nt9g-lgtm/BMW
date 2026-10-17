@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة بلياردو أونلاين</title>
+    <!-- مكتبة الاتصال المباشر بين اللاعبين P2P -->
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+        #menu {
+            background: #2c2c2c;
+            padding: 20px;
+            border-radius: 10px;
+            display: inline-block;
+            margin-top: 50px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        input, button {
+            padding: 10px;
+            margin: 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: none;
+        }
+        button {
+            background-color: #27ae60;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #219653;
+        }
+        #game-container {
+            display: none;
+            margin-top: 20px;
+        }
+        canvas {
+            background: #0b6623;
+            border: 15px solid #5c3a21;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            cursor: crosshair;
+        }
+        #status {
+            font-size: 18px;
+            margin: 10px;
+            color: #f1c40f;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>لعبة البلياردو الأونلاين</h1>
+
+    <!-- قائمة الدخول -->
+    <div id="menu">
+        <h3>أنشئ غرفة أو انضم لغرفة صديق</h3>
+        <button onclick="createRoom()">إنشاء غرفة جديدة</button>
+        <br>
+        <input type="text" id="roomInput" placeholder="أدخل كود الصديق هنا">
+        <button onclick="joinRoom()">الانضمام للغرفة</button>
+        <p id="my-id" style="color: #aaa; font-size: 14px;"></p>
+    </div>
+
+    <!-- شاشة اللعبة -->
+    <div id="game-container">
+        <div id="status">جاري الاتصال...</div>
+        <canvas id="billiardsCanvas" width="800" height="400"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('billiardsCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusDiv = document.getElementById('status');
+        const menuDiv = document.getElementById('menu');
+        const gameContainer = document.getElementById('game-container');
+
+        let peer, conn;
+        let isHost = false;
+        let myTurn = false;
+
+        // خصائص الترابيزة والكرات
+        const table = { width: 800, height: 400 };
+        let balls = [
+            { x: 200, y: 200, vx: 0, vy: 0, color: 'white', radius: 10, isCue: true },  // الكرة البيضاء
+            { x: 600, y: 200, vx: 0, vy: 0, color: 'yellow', radius: 10, isCue: false }, // كرة صفراء
+            { x: 630, y: 185, vx: 0, vy: 0, color: 'blue', radius: 10, isCue: false },   // كرة زرقاء
+            { x: 630, y: 215, vx: 0, vy: 0, color: 'red', radius: 10, isCue: false }     // كرة حمراء
+        ];
+
+        let isDragging = false;
+        let mouseX = 0, mouseY = 0;
+
+        // تهيئة الـ PeerJS
+        function initPeer(id = null) {
+            peer = id ? new Peer(id) : new Peer();
+
+            peer.on('open', (id) => {
+                document.getElementById('my-id').innerText = "كود الغرفة الخاص بك: " + id;
+            });
+
+            peer.on('connection', (connection) => {
+                conn = connection;
+                setupConnection();
+                isHost = true;
+                myTurn = true; // الهوست يبدأ الأول
+                startGame("أنت الهوست (دورك الآن)");
+            });
+        }
+
+        initPeer();
+
+        function createRoom() {
+            // الهوست جاهز بالفعل، فقط ينتظر صديقه يدخل بالكود
+            alert("تم إنشاء الغرفة! اعطِ الكود الخاص بك لصديقك ليدخل معك.");
+        }
+
+        function joinRoom() {
+            const roomID = document.getElementById('roomInput').value;
+            if (!roomID) return alert("الرجاء إدخال الكود!");
+
+            conn = peer.connect(roomID);
+            setupConnection();
+            isHost = false;
+            myTurn = false; // الضيف ينتظر دوره
+            startGame("انضممت للغرفة (انتظر دورك)");
+        }
+
+        function setupConnection() {
+            conn.on('data', (data) => {
+                if (data.type === 'shot') {
+                    // استقبال ضربة العصا من الخصم
+                    balls[0].vx = data.vx;
+                    balls[0].vy = data.vy;
+                    myTurn = true;
+                    statusDiv.innerText = "دورك للعب!";
+                } else if (data.type === 'sync') {
+                    // مزامنة أماكن الكرات
+                    balls = data.balls;
+                }
+            });
+        }
+
+        function startGame(statusText) {
+            menuDiv.style.display = 'none';
+            gameContainer.style.display = 'block';
+            statusDiv.innerText = statusText;
+            requestAnimationFrame(gameLoop);
+        }
+
+        // تفاعلات الماوس للضرب بالعصا
+        canvas.addEventListener('mousedown', (e) => {
+            if (!myTurn) return;
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+            
+            // التأكد من الضغط قرب الكرة البيضاء
+            const dx = balls[0].x - mouseX;
+            const dy = balls[0].y - mouseY;
+            if (Math.sqrt(dx*dx + dy*dy) < 30) {
+                isDragging = true;
+            }
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (!isDragging || !myTurn) return;
+            isDragging = false;
+
+            const rect = canvas.getBoundingClientRect();
+            const endX = e.clientX - rect.left;
+            const endY = e.clientY - rect.top;
+
+            // حساب قوة واتجاه الضربة
+            const vx = (balls[0].x - endX) * 0.15;
+            const vy = (balls[0].y - endY) * 0.15;
+
+            balls[0].vx = vx;
+            balls[0].vy = vy;
+
+            myTurn = false;
+            statusDiv.innerText = "دور خصمك...";
+
+            // إرسال الضربة للخصم
+            conn.send({ type: 'shot', vx: vx, vy: vy });
+        });
+
+        // حلقة اللعبة والفيزياء
+        function gameLoop() {
+            updatePhysics();
+            drawTable();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updatePhysics() {
+            let moving = false;
+
+            balls.forEach(ball => {
+                if (ball.vx !== 0 || ball.vy !== 0) {
+                    moving = true;
+                    ball.x += ball.vx;
+                    ball.y += ball.vy;
+
+                    // احتكاك لتقليل السرعة تدريجياً
+                    ball.vx *= 0.98;
+                    ball.vy *= 0.98;
+
+                    if (Math.abs(ball.vx) < 0.1) ball.vx = 0;
+                    if (Math.abs(ball.vy) < 0.1) ball.vy = 0;
+
+                    // الارتطام بحوائط الترابيزة
+                    if (ball.x - ball.radius < 0) { ball.x = ball.radius; ball.vx *= -1; }
+                    if (ball.x + ball.radius > table.width) { ball.x = table.width - ball.radius; ball.vx *= -1; }
+                    if (ball.y - ball.radius < 0) { ball.y = ball.radius; ball.vy *= -1; }
+                    if (ball.y + ball.radius > table.height) { ball.y = table.height - ball.radius; ball.vy *= -1; }
+                }
+            });
+
+            // الاصطدامات البسيطة بين الكرات
+            for (let i = 0; i < balls.length; i++) {
+                for (let j = i + 1; j < balls.length; j++) {
+                    let b1 = balls[i];
+                    let b2 = balls[j];
+                    let dx = b2.x - b1.x;
+                    let dy = b2.y - b1.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < b1.radius + b2.radius) {
+                        // عكس السرعات عند الاصطدام (تبادل طاقة بسيط)
+                        let tempVx = b1.vx;
+                        let tempVy = b1.vy;
+                        b1.vx = b2.vx;
+                        b1.vy = b2.vy;
+                        b2.vx = tempVx;
+                        b2.vy = tempVy;
+
+                        // إبعاد الكرات عن بعضها لمنع الالتصاق
+                        let overlap = (b1.radius + b2.radius) - dist;
+                        b1.x -= dx * 0.5 * overlap / dist;
+                        b1.y -= dy * 0.5 * overlap / dist;
+                        b2.x += dx * 0.5 * overlap / dist;
+                        b2.y += dy * 0.5 * overlap / dist;
+                    }
+                }
+            }
+        }
+
+        function drawTable() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // رسم الكرات
+            balls.forEach(ball => {
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = ball.color;
+                ctx.fill();
+                ctx.closePath();
+                ctx.strokeStyle = '#000';
+                ctx.stroke();
+            });
+
+            // رسم عصا البلياردو إذا كان الدور لل jugador وكان يسحب الماوس
+            if (isDragging && myTurn) {
+                ctx.beginPath();
+                ctx.moveTo(balls[0].x, balls[0].y);
+                ctx.lineTo(mouseX, mouseY);
+                ctx.strokeStyle = '#e67e22';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+                ctx.closePath();
+            }
+        }
+    </script>
+</body>
+</html>
